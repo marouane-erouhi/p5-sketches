@@ -3,6 +3,12 @@
 // How would you do this with a
 // higher order function????
 
+function withinCols(i) {// Check if a row is within the bounds
+    return i >= 0 && i <= cols - 1;
+}
+function withinRows(j) {// Check if a column is within the bounds
+    return j >= 0 && j <= rows - 1;
+}
 function make2DArray(cols, rows) {
     let arr = new Array(cols);
     for (let i = 0; i < arr.length; i++) {
@@ -14,7 +20,6 @@ function make2DArray(cols, rows) {
     }
     return arr;
 }
-
 class Button {
     constructor(x, y, w, h, defaultColor, hoverColor, text, callback) {
         this.x = x
@@ -57,7 +62,6 @@ class Button {
     }
 
 }
-
 const TetraminoFunctions = {
     scale: function (arr, factor) {
         let result = [];
@@ -97,16 +101,10 @@ const TetraminoFunctions = {
     }
 }
 
-/*
-write a function that takes a tetramino array and rotates it either clockwise or counter-clockwise based on the direction input variable
-*/
-
-
 class Tertramino{
-    constructor(shape, scale,c){
+    constructor(shape, scale){
         this.shape = shape
         this.scale = scale
-        this.color = c
         
         this.tetramino = TetraminoFunctions.scale(shape,scale)
     }
@@ -118,7 +116,7 @@ class Tertramino{
                 let row = y + j;
                 if (withinCols(col) && withinRows(row)) {
                     if (this.tetramino[i][j] === 0) continue
-                    grid[col][row] = hueValue;
+                    grid[col][row] = gameData.currentColor;
                 }
             }
         }
@@ -127,33 +125,73 @@ class Tertramino{
 // The grid
 let grid;
 // How big is each square?
-let w = 2;
+let w = 1;
 let cols, rows;
-let hueValue = 200;
 
-const gameColors = [0,'red', 'blue', 'green']
+// const gameColors = ['rgb(255, 0, 0)', 'rgb(0,255, 0)', 'rgb(0,0,255)']
+// const gameColors = [75, 150, 300]
+// const gameColors = ['red', 'red', 'red']
 const tetrisShapes = {
-    t: [[1, 0], [1, 0], [1, 1]]
+    l: [[1, 0], [1, 0], [1, 1]],
+    square: [[1,1],[1,1]],
+    t: [[1,1,1],[0,1,0]],
+    skew: [[0,1,1],[1,1,0]],
+    straight: [[1,1,1,1], [0,0,0,0]]
 }
 
 let gameState = 'game' // menu, game
-
-
-function withinCols(i) {// Check if a row is within the bounds
-    return i >= 0 && i <= cols - 1;
-}
-function withinRows(j) {// Check if a column is within the bounds
-    return j >= 0 && j <= rows - 1;
-}
-
 let menuData = {
     playButton: null
 }
 let gameData = {
-    tetraminoT: null
+    pieces: [],
+    currentColor: 0
 }
 function drawMenu(){
     menuData.playButton.draw()
+}
+
+function isIslandTouchingSides(grid, x, y, color) {
+    let visited = make2DArray(cols, rows);
+    let queue = [];
+
+    if (grid[x][y] !== color) return false;
+
+    queue.push({ x, y });
+
+    while (queue.length > 0) {
+        let { x, y } = queue.shift();
+
+        if (visited[x][y]) continue;
+        visited[x][y] = true;
+
+        if (x === 0 || x === cols - 1) return true;
+
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                let nx = x + dx;
+                let ny = y + dy;
+
+                if (withinCols(nx) && withinRows(ny) && grid[nx][ny] === color) {
+                    queue.push({ x: nx, y: ny });
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+function floodFill(grid, x, y, oldColor, newColor) {
+    if (x < 0 || x >= cols || y < 0 || y >= rows) return;
+    if (grid[x][y] !== oldColor) return;
+
+    grid[x][y] = newColor;
+
+    floodFill(grid, x - 1, y, oldColor, newColor);
+    floodFill(grid, x + 1, y, oldColor, newColor);
+    floodFill(grid, x, y - 1, oldColor, newColor);
+    floodFill(grid, x, y + 1, oldColor, newColor);
 }
 
 function drawGame(){
@@ -162,7 +200,12 @@ function drawGame(){
         for (let j = 0; j < rows; j++) {
             noStroke();
             if (grid[i][j] > 0) {
-                fill(grid[i][j], 255, 255);
+                let cell_color = color(255, 0, 0)
+                if (grid[i][j] == 1)       cell_color = color(255,0,0)
+                else if (grid[i][j] == 2)  cell_color = color(0,255, 0)
+                else if (grid[i][j] == 3)   cell_color = color(0,0,255)
+                fill(cell_color);
+                // fill(gameColors[grid[i][j] - 1]);
                 let x = i * w;
                 let y = j * w;
                 square(x, y, w);
@@ -215,6 +258,14 @@ function drawGame(){
             }
         }
     }
+    // for (let i = 0; i < cols; i++) {
+    //     for (let j = 0; j < rows; j++) {
+    //         if (grid[i][j] > 0 && isIslandTouchingSides(grid, i, j, grid[i][j])) {
+    //             floodFill(grid, i, j, grid[i][j], 0);
+    //         }
+    //     }
+    // }
+
     grid = nextGrid;
 }
 
@@ -224,8 +275,11 @@ function mousePressed() {
     let mouseRow = floor(mouseY / w);
 
     // tetrisShapes.t = enlargeArray(tetrisShapes.t,10)
-
-    gameData.tetraminoT.insert(mouseCol, mouseRow)
+    // gameData.tetraminoT.setColor(gameData.currentColor)
+    // gameData.tetraminoT.insert(mouseCol, mouseRow)
+    const random_piece = random(gameData.pieces)
+    random_piece.insert(mouseCol, mouseRow)
+    gameData.currentColor = ceil(random(3))
 }
 function mouseReleased(){
     if(gameState === 'menu'){
@@ -235,15 +289,25 @@ function mouseReleased(){
 
 function setup() {
     createCanvas(400, 600);
-    colorMode(HSB, 360, 255, 255);
+    // colorMode(HSB, 360, 255, 255);
     cols = width / w;
     rows = height / w;
     grid = make2DArray(cols, rows);
     // frameRate(1)
     menuData.playButton = new Button(width / 2, (height / 2), 100, 65, color(150, 55, 100), color(50, 55, 100), "Start Game", () => { gameState = 'game' })
-    gameData.tetraminoT = new Tertramino(tetrisShapes.t,10,'red')
-    gameData.tetraminoT.insert(cols / 2, 3)
+    gameData.tetraminoT = new Tertramino(tetrisShapes.t,10,'blue')
 
+    gameData.pieces.push(new Tertramino(tetrisShapes.t, 10, 'blue'))
+    gameData.pieces.push(new Tertramino(tetrisShapes.l, 10, 'blue'))
+    gameData.pieces.push(new Tertramino(tetrisShapes.skew, 10, 'blue'))
+    gameData.pieces.push(new Tertramino(tetrisShapes.square, 10, 'blue'))
+    gameData.pieces.push(new Tertramino(tetrisShapes.straight, 10, 'blue'))
+
+    const val = random(gameData.pieces)
+    console.log(val, gameData.pieces)
+    val.insert(cols / 2, 3)
+    // gameData.tetraminoT.insert(cols / 2, 3)
+    gameData.currentColor = ceil(random(3))
 }
 
 function draw() {
